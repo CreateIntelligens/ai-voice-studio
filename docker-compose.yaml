@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  ai-voice-studio:
+    build: .
+    container_name: ai-voice-studio-app
+    ports:
+      - "${PORT:-50000}:50000"
+      - "${WEB_PORT:-8080}:8080"
+    volumes:
+      - .:/opt/AIVoiceStudio
+    environment:
+      - MODEL_DIR=${MODEL_DIR}
+      - PORT=${PORT}
+    env_file:
+      - .env
+    restart: always
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    networks:
+      - ai-voice-studio-network
+
+networks:
+  ai-voice-studio-network:
+    driver: bridge
