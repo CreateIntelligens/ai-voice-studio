@@ -1,5 +1,7 @@
 # 模型檔案 (通常很大，不適合放在 Git)
 models/
+# 但是允許 third_party/Matcha-TTS/matcha/models 目錄
+!third_party/Matcha-TTS/matcha/models/
 *.pth
 *.pt
 *.onnx
@@ -47,6 +49,7 @@ temp/
 *.tmp
 
 # 環境變數 (如果包含敏感資訊)
+.env
 .env.local
 .env.production
 .env.staging
