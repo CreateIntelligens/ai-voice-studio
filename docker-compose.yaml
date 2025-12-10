@@ -6,7 +6,7 @@ services:
     container_name: ai-voice-studio-app
     ports:
       - "${PORT:-50000}:50000"
-      - "${WEB_PORT:-8080}:8080"
+      - "${WEB_PORT:-8085}:8085"
     volumes:
       - .:/opt/AIVoiceStudio
     environment:

@@ -36,7 +36,7 @@ docker-compose logs -f
 
 ### 🌐 訪問服務
 
-- **網頁界面**: http://localhost:8080
+- **網頁界面**: http://localhost:8085
 - **API 端點**: http://localhost:50000
 
 ## ⚙️ 配置說明
@@ -70,7 +70,7 @@ MODEL_DIR=./models/your-model-directory/
 
 # 服務端口
 PORT=50000
-WEB_PORT=8080
+WEB_PORT=8085
 
 # Docker 項目名稱
 COMPOSE_PROJECT_NAME=ai-voice-studio

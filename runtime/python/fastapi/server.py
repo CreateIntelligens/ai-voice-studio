@@ -114,7 +114,8 @@ async def inference_zero_shot_wav(tts_text: str = Form(), prompt_text: str = For
     # 將模型輸出轉換為WAV格式
     audio_data = []
     for i in model_output:
-        audio_data.append(i['tts_speech'].numpy())
+        # tts_speech 的形狀是 (1, n_samples),需要展平為 (n_samples,)
+        audio_data.append(i['tts_speech'].numpy().flatten())
     
     # 合併所有音頻數據
     if audio_data:
@@ -176,7 +177,8 @@ async def inference_with_voice_config(tts_text: str = Form(), voice_id: str = Fo
         # 將模型輸出轉換為WAV格式
         audio_data = []
         for i in model_output:
-            audio_data.append(i['tts_speech'].numpy())
+            # tts_speech 的形狀是 (1, n_samples),需要展平為 (n_samples,)
+            audio_data.append(i['tts_speech'].numpy().flatten())
         
         # 合併所有音頻數據
         if audio_data:

@@ -31,7 +31,7 @@ COPY start.sh /start.sh
 RUN chmod +x /start.sh
 
 # Expose ports
-EXPOSE 50000 8080
+EXPOSE 50000 8085
 
 # Start services
 CMD ["/start.sh"]
