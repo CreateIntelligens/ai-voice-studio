@@ -27,7 +27,21 @@ os.environ['MKL_SERVICE_FORCE_INTEL'] = '1'
 import argparse
 import logging
 import json
+import time
+
+# 配置日誌格式
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+logger = logging.getLogger(__name__)
+
+# 降低其他模組的日誌級別
 logging.getLogger('matplotlib').setLevel(logging.WARNING)
+logging.getLogger('uvicorn').setLevel(logging.WARNING)
+logging.getLogger('uvicorn.access').setLevel(logging.WARNING)
+
 from fastapi import FastAPI, UploadFile, Form, File, HTTPException
 from fastapi.responses import StreamingResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -174,16 +188,31 @@ async def get_voices():
 
 @app.get("/inference_with_voice_config")
 @app.post("/inference_with_voice_config")
-async def inference_with_voice_config(tts_text: str = Form(), voice_id: str = Form()):
+async def inference_with_voice_config(tts_text: str = Form(), voice_id: str = Form(), original_text: str = Form(None)):
     """使用預配置聲音進行語音合成"""
     try:
+        # 記錄開始時間
+        start_time = time.time()
+        
         # 獲取聲音配置
         voice_config = get_voice_by_id(voice_id)
+        
+        # 記錄原始文字和轉換後的文字
+        print("\n" + "="*60)
+        if original_text and original_text != tts_text:
+            print(f"🎙️  語音生成請求")
+            print(f"原始文字: {original_text}")
+            print(f"台語文字: {tts_text}")
+            print(f"使用聲音: {voice_config['name']} ({voice_id})")
+        else:
+            print(f"🎙️  語音生成請求")
+            print(f"輸入文字: {tts_text}")
+            print(f"使用聲音: {voice_config['name']} ({voice_id})")
+        print("="*60)
         
         # 設定隨機種子
         seed = voice_config.get('seed', 0)
         set_all_random_seed(seed)
-        print(f"使用聲音: {voice_config['name']}, 種子碼: {seed}")
         
         # 載入語音樣本
         prompt_speech_16k = load_audio_sample(voice_config['audio_file'])
@@ -216,6 +245,13 @@ async def inference_with_voice_config(tts_text: str = Form(), voice_id: str = Fo
                 wav_file.writeframes(audio_int16.tobytes())
             
             wav_buffer.seek(0)
+            
+            # 記錄結束時間和總耗時
+            end_time = time.time()
+            elapsed_time = end_time - start_time
+            print(f"✅ 語音生成完成,耗時: {elapsed_time:.2f} 秒")
+            print("="*60 + "\n")
+            
             return Response(
                 content=wav_buffer.getvalue(),
                 media_type="audio/wav",
@@ -225,7 +261,7 @@ async def inference_with_voice_config(tts_text: str = Form(), voice_id: str = Fo
             return Response(content=b"", media_type="audio/wav")
             
     except Exception as e:
-        print(f"語音合成錯誤: {str(e)}")
+        print(f"❌ 語音合成錯誤: {str(e)}")
         raise HTTPException(status_code=500, detail=f"語音合成失敗: {str(e)}")
 
 

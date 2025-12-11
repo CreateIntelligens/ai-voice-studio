@@ -9,6 +9,7 @@ services:
       - "${WEB_PORT:-8085}:8085"
     volumes:
       - .:/opt/CosyVoice
+      - ./nginx.conf:/etc/nginx/sites-enabled/cosyvoice
     environment:
       - MODEL_DIR=${MODEL_DIR}
       - PORT=${PORT}

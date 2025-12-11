@@ -4,15 +4,19 @@ const ttsText = document.getElementById('ttsText');
 const voiceSelect = document.getElementById('voiceSelect');
 const generateBtn = document.getElementById('generateBtn');
 const loading = document.getElementById('loading');
-const resultCard = document.getElementById('resultCard');
-const audioPlayer = document.getElementById('audioPlayer');
-const downloadBtn = document.getElementById('downloadBtn');
+const resultsContainer = document.getElementById('resultsContainer');
+const audioPlayer1 = document.getElementById('audioPlayer1');
+const audioPlayer2 = document.getElementById('audioPlayer2');
 const errorMessage = document.getElementById('errorMessage');
 const errorText = document.getElementById('errorText');
 const charCount = document.getElementById('charCount');
 
 // Global variables
-let currentAudioBlob = null;
+let audioBlobs = {
+    1: null,
+    2: null
+};
+let availableVoices = [];
 
 // Initialize
 document.addEventListener('DOMContentLoaded', function() {
@@ -27,9 +31,6 @@ function setupEventListeners() {
     
     // Character count
     ttsText.addEventListener('input', updateCharCount);
-    
-    // Download button
-    downloadBtn.addEventListener('click', downloadAudio);
 }
 
 function updateCharCount() {
@@ -53,13 +54,13 @@ async function loadVoices() {
         }
         
         const data = await response.json();
-        const voices = data.voices;
+        availableVoices = data.voices;
         
         // 清空現有選項
         voiceSelect.innerHTML = '<option value="">請選擇聲音類型...</option>';
         
         // 添加聲音選項
-        voices.forEach(voice => {
+        availableVoices.forEach(voice => {
             const option = document.createElement('option');
             option.value = voice.id;
             option.textContent = `${voice.name} - ${voice.description}`;
@@ -80,18 +81,72 @@ async function handleFormSubmit(event) {
         return;
     }
     
-    // Show loading
+    // Show loading and results container
     showLoading();
     hideError();
-    hideResult();
+    showResultsContainer();
     
     try {
-        // Prepare form data
-        const formData = new FormData();
-        formData.append('tts_text', ttsText.value.trim());
-        formData.append('voice_id', voiceSelect.value);
+        const text = ttsText.value.trim();
+        const selectedVoiceId = voiceSelect.value;
         
-        // Make API request
+        // 顯示兩個 loading
+        showResultLoading(1);
+        showResultLoading(2);
+        
+        // 版本1: 先翻譯成台語再生成
+        generateAudioWithTranslation(text, selectedVoiceId, 1);
+        
+        // 版本2: 直接使用原文生成
+        generateAudioAsync(text, selectedVoiceId, 2);
+        
+    } catch (error) {
+        console.error('Error:', error);
+        showError('生成語音時發生錯誤: ' + error.message);
+    } finally {
+        hideLoading();
+    }
+}
+
+async function translateToTaiwanese(text) {
+    try {
+        const response = await fetch('https://learn-language.tokyo/taigiTranslator/model2/translate', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                inputText: text,
+                inputLan: "Traditional Chinese:zhTW",
+                outputLan: "Taiwanese:tw"
+            })
+        });
+        
+        if (!response.ok) {
+            throw new Error(`翻譯失敗: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        return data.outputText || data.result || text; // 根據實際 API 回應調整
+        
+    } catch (error) {
+        console.error('Translation error:', error);
+        throw new Error('台語翻譯失敗，請稍後再試');
+    }
+}
+
+async function generateAudioWithTranslation(text, voiceId, version) {
+    try {
+        // 先翻譯成台語
+        const translatedText = await translateToTaiwanese(text);
+        console.log('翻譯結果:', translatedText);
+        
+        // 使用翻譯後的文字生成語音
+        const formData = new FormData();
+        formData.append('tts_text', translatedText);
+        formData.append('voice_id', voiceId);
+        formData.append('original_text', text); // 傳遞原始文字給後端記錄
+        
         const response = await fetch('/api/inference_with_voice_config', {
             method: 'POST',
             body: formData
@@ -101,22 +156,74 @@ async function handleFormSubmit(event) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
         
-        // Get audio blob
-        const audioBlob = await response.blob();
-        currentAudioBlob = audioBlob;
+        const blob = await response.blob();
+        audioBlobs[version] = blob;
         
-        // Create audio URL and play
-        const audioUrl = URL.createObjectURL(audioBlob);
+        // 創建音頻 URL 並設置播放器
+        const audioUrl = URL.createObjectURL(blob);
+        const audioPlayer = document.getElementById(`audioPlayer${version}`);
         audioPlayer.src = audioUrl;
         
-        // Show result
-        showResult();
+        // 隱藏 loading 並顯示音頻播放器
+        hideResultLoading(version);
+        showAudioContent(version);
         
     } catch (error) {
-        console.error('Error:', error);
-        showError('生成語音時發生錯誤: ' + error.message);
-    } finally {
-        hideLoading();
+        console.error(`Error generating audio ${version}:`, error);
+        hideResultLoading(version);
+        showError(`語音版本 ${version} 生成失敗: ${error.message}`);
+    }
+}
+
+async function generateAudioAsync(text, voiceId, version) {
+    try {
+        // 找出對應的聲音配置
+        const voiceConfig = availableVoices.find(v => v.id === voiceId);
+        if (!voiceConfig) {
+            throw new Error('找不到聲音配置');
+        }
+        
+        // 準備音檔路徑
+        const audioFilePath = `/config/audio_samples/${voiceConfig.audio_file}`;
+        
+        // 獲取音檔檔案
+        const audioResponse = await fetch(audioFilePath);
+        if (!audioResponse.ok) {
+            throw new Error('無法載入音檔');
+        }
+        const audioBlob = await audioResponse.blob();
+        
+        // 準備 FormData
+        const formData = new FormData();
+        formData.append('prompt_audio', audioBlob, voiceConfig.audio_file);
+        formData.append('text', text);
+        
+        // 通過 nginx 代理調用外部 API
+        const response = await fetch('/external-tts/tts', {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const blob = await response.blob();
+        audioBlobs[version] = blob;
+        
+        // 創建音頻 URL 並設置播放器
+        const audioUrl = URL.createObjectURL(blob);
+        const audioPlayer = document.getElementById(`audioPlayer${version}`);
+        audioPlayer.src = audioUrl;
+        
+        // 隱藏 loading 並顯示音頻播放器
+        hideResultLoading(version);
+        showAudioContent(version);
+        
+    } catch (error) {
+        console.error(`Error generating audio ${version}:`, error);
+        hideResultLoading(version);
+        showError(`語音版本 ${version} 生成失敗: ${error.message}`);
     }
 }
 
@@ -156,13 +263,31 @@ function hideLoading() {
     generateBtn.innerHTML = '<i class="fas fa-play"></i><span>生成語音</span>';
 }
 
-function showResult() {
-    resultCard.style.display = 'block';
-    resultCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+function showResultsContainer() {
+    resultsContainer.style.display = 'block';
+    resultsContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
-function hideResult() {
-    resultCard.style.display = 'none';
+function hideResultsContainer() {
+    resultsContainer.style.display = 'none';
+}
+
+function showResultLoading(version) {
+    const loadingEl = document.getElementById(`loading${version}`);
+    const audioContent = document.getElementById(`audioContent${version}`);
+    
+    loadingEl.style.display = 'block';
+    audioContent.style.display = 'none';
+}
+
+function hideResultLoading(version) {
+    const loadingEl = document.getElementById(`loading${version}`);
+    loadingEl.style.display = 'none';
+}
+
+function showAudioContent(version) {
+    const audioContent = document.getElementById(`audioContent${version}`);
+    audioContent.style.display = 'block';
 }
 
 function showError(message) {
@@ -180,16 +305,16 @@ function hideError() {
     errorMessage.style.display = 'none';
 }
 
-function downloadAudio() {
-    if (!currentAudioBlob) {
+function downloadAudio(version) {
+    if (!audioBlobs[version]) {
         showError('沒有可下載的音頻檔案');
         return;
     }
     
-    const url = URL.createObjectURL(currentAudioBlob);
+    const url = URL.createObjectURL(audioBlobs[version]);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `ai_voice_${Date.now()}.wav`;
+    a.download = `ai_voice_v${version}_${Date.now()}.wav`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
