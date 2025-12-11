@@ -18,6 +18,13 @@ let audioBlobs = {
 };
 let availableVoices = [];
 
+// Demo 文字內容
+const demoTexts = {
+    1: "這是一個好日子！ 你吃飽了嗎？ 附近有家餐廳好吃喔。一起去吃吧！",
+    2: "一開始查字典，慢慢地看簡體字，沒多久，就看得很順了！所以只要去學，就會了阿！寫台文也一樣，查一次記不得，查兩次，查三次……，總是會記起來。",
+    3: "這個問題可能需要我們的業務專家來為您提供更詳細的資訊，方便留下您的聯絡方式嗎？我請專人盡快與您聯絡！"
+};
+
 // Initialize
 document.addEventListener('DOMContentLoaded', function() {
     setupEventListeners();
@@ -31,6 +38,11 @@ function setupEventListeners() {
     
     // Character count
     ttsText.addEventListener('input', updateCharCount);
+    
+    // Demo buttons
+    document.querySelectorAll('.demo-btn').forEach(btn => {
+        btn.addEventListener('click', handleDemoClick);
+    });
 }
 
 function updateCharCount() {
@@ -57,7 +69,7 @@ async function loadVoices() {
         availableVoices = data.voices;
         
         // 清空現有選項
-        voiceSelect.innerHTML = '<option value="">請選擇聲音類型...</option>';
+        voiceSelect.innerHTML = '';
         
         // 添加聲音選項
         availableVoices.forEach(voice => {
@@ -67,9 +79,57 @@ async function loadVoices() {
             voiceSelect.appendChild(option);
         });
         
+        // 自動選擇第一個聲音
+        if (availableVoices.length > 0) {
+            voiceSelect.value = availableVoices[0].id;
+        }
+        
     } catch (error) {
         console.error('載入聲音配置失敗:', error);
         showError('載入聲音配置失敗，請重新整理頁面');
+    }
+}
+
+function handleDemoClick(event) {
+    const demoNumber = event.currentTarget.getAttribute('data-demo');
+    const demoText = demoTexts[demoNumber];
+    
+    // 檢查是否選擇了聲音
+    if (!voiceSelect.value) {
+        showError('請先選擇聲音類型');
+        voiceSelect.focus();
+        return;
+    }
+    
+    // 填入 demo 文字
+    ttsText.value = demoText;
+    updateCharCount();
+    
+    // 自動觸發生成
+    const text = demoText;
+    const voiceId = voiceSelect.value;
+    
+    // Show loading and results container
+    showLoading();
+    hideError();
+    showResultsContainer();
+    
+    try {
+        // 顯示兩個 loading
+        showResultLoading(1);
+        showResultLoading(2);
+        
+        // 版本1: 先翻譯成台語再生成
+        generateAudioWithTranslation(text, voiceId, 1);
+        
+        // 版本2: 直接使用原文生成
+        generateAudioAsync(text, voiceId, 2);
+        
+    } catch (error) {
+        console.error('Error:', error);
+        showError('生成語音時發生錯誤: ' + error.message);
+    } finally {
+        hideLoading();
     }
 }
 

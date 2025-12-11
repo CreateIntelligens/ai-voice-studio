@@ -233,6 +233,53 @@ body {
     display: block;
 }
 
+/* Demo buttons */
+.demo-section {
+    margin-top: 10px;
+}
+
+.demo-buttons {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+}
+
+.demo-btn {
+    background: linear-gradient(135deg, #4ecdc4 0%, #44a3a0 100%);
+    color: white;
+    border: none;
+    padding: 12px 20px;
+    border-radius: 12px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+    box-shadow: 0 4px 12px rgba(78, 205, 196, 0.2);
+}
+
+.demo-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(78, 205, 196, 0.3);
+}
+
+.demo-btn:active {
+    transform: translateY(0);
+}
+
+.demo-btn i {
+    font-size: 1.2rem;
+}
+
+@media (max-width: 600px) {
+    .demo-buttons {
+        grid-template-columns: 1fr;
+    }
+}
+
 /* Buttons */
 .generate-btn {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
