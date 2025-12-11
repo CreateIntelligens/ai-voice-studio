@@ -8,10 +8,15 @@ services:
       - "${PORT:-50000}:50000"
       - "${WEB_PORT:-8085}:8085"
     volumes:
-      - .:/opt/AIVoiceStudio
+      - .:/opt/CosyVoice
     environment:
       - MODEL_DIR=${MODEL_DIR}
       - PORT=${PORT}
+      - CUDA_HOME=/usr/local/cuda
+      - DS_BUILD_OPS=0
+      - DS_BUILD_FUSED_ADAM=0
+      - DS_BUILD_CPU_ADAM=0
+      - DS_BUILD_UTILS=0
     env_file:
       - .env
     restart: always

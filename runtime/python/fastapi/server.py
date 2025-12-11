@@ -13,6 +13,17 @@
 # limitations under the License.
 import os
 import sys
+
+# Fix DeepSpeed CUDA check issue before importing any transformers modules
+os.environ['DS_BUILD_OPS'] = '0'
+os.environ['DS_BUILD_FUSED_ADAM'] = '0'
+os.environ['DS_BUILD_CPU_ADAM'] = '0'
+os.environ['DS_BUILD_UTILS'] = '0'
+
+# Fix MKL threading layer conflict
+os.environ['MKL_THREADING_LAYER'] = 'GNU'
+os.environ['MKL_SERVICE_FORCE_INTEL'] = '1'
+
 import argparse
 import logging
 import json
@@ -27,6 +38,16 @@ import wave
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append('{}/../../..'.format(ROOT_DIR))
 sys.path.append('{}/../../../third_party/Matcha-TTS'.format(ROOT_DIR))
+
+# Register custom vLLM model before importing CosyVoice
+try:
+    from vllm import ModelRegistry
+    from cosyvoice.vllm.cosyvoice2 import CosyVoice2ForCausalLM
+    ModelRegistry.register_model("CosyVoice2ForCausalLM", CosyVoice2ForCausalLM)
+    logging.info("Successfully registered CosyVoice2ForCausalLM with vLLM")
+except ImportError:
+    logging.warning("vLLM not available, skipping custom model registration")
+
 from cosyvoice.cli.cosyvoice import CosyVoice, CosyVoice2
 from cosyvoice.utils.file_utils import load_wav
 from cosyvoice.utils.common import set_all_random_seed
@@ -240,12 +261,15 @@ if __name__ == '__main__':
                         type=str,
                         default='iic/CosyVoice-300M',
                         help='local path or modelscope repo id')
+    parser.add_argument('--load_vllm',
+                        action='store_true',
+                        help='enable vllm acceleration for faster inference')
     args = parser.parse_args()
     try:
         cosyvoice = CosyVoice(args.model_dir)
     except Exception:
         try:
-            cosyvoice = CosyVoice2(args.model_dir)
+            cosyvoice = CosyVoice2(args.model_dir, load_vllm=args.load_vllm)
         except Exception:
             raise TypeError('no valid model_type!')
     uvicorn.run(app, host="0.0.0.0", port=args.port)
