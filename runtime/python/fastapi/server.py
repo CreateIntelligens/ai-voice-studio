@@ -28,6 +28,7 @@ import argparse
 import logging
 import json
 import time
+import httpx
 
 # 配置日誌格式
 logging.basicConfig(
@@ -260,6 +261,92 @@ async def inference_with_voice_config(tts_text: str = Form(), voice_id: str = Fo
         else:
             return Response(content=b"", media_type="audio/wav")
             
+    except Exception as e:
+        print(f"❌ 語音合成錯誤: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"語音合成失敗: {str(e)}")
+
+
+TAIGI_TRANSLATE_URL = "https://learn-language.tokyo/taigiTranslator/model2/translate"
+
+
+async def translate_to_taiwanese(text: str) -> str:
+    """呼叫台語翻譯 API，將繁體中文翻譯成台語"""
+    payload = {
+        "inputText": text,
+        "inputLan": "Traditional Chinese:zhTW",
+        "outputLan": "Taiwanese:tw"
+    }
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.post(TAIGI_TRANSLATE_URL, json=payload)
+        response.raise_for_status()
+        data = response.json()
+        return data.get("outputText") or data.get("result") or text
+
+
+@app.post("/inference_with_translation")
+async def inference_with_translation(tts_text: str = Form(), voice_id: str = Form()):
+    """先將繁體中文翻譯成台語，再進行語音合成"""
+    try:
+        start_time = time.time()
+
+        voice_config = get_voice_by_id(voice_id)
+
+        # 翻譯成台語
+        translated_text = await translate_to_taiwanese(tts_text)
+
+        print("\n" + "="*60)
+        print(f"🎙️  語音生成請求（含台語翻譯）")
+        print(f"原始文字: {tts_text}")
+        print(f"台語文字: {translated_text}")
+        print(f"使用聲音: {voice_config['name']} ({voice_id})")
+        print("="*60)
+
+        seed = voice_config.get('seed', 0)
+        set_all_random_seed(seed)
+
+        prompt_speech_16k = load_audio_sample(voice_config['audio_file'])
+
+        model_output = cosyvoice.inference_zero_shot(
+            translated_text,
+            voice_config['prompt_text'],
+            prompt_speech_16k
+        )
+
+        audio_data = []
+        for i in model_output:
+            audio_data.append(i['tts_speech'].numpy().flatten())
+
+        if audio_data:
+            combined_audio = np.concatenate(audio_data)
+            audio_int16 = (combined_audio * (2 ** 15)).astype(np.int16)
+
+            wav_buffer = io.BytesIO()
+            with wave.open(wav_buffer, 'wb') as wav_file:
+                wav_file.setnchannels(1)
+                wav_file.setsampwidth(2)
+                wav_file.setframerate(22050)
+                wav_file.writeframes(audio_int16.tobytes())
+
+            wav_buffer.seek(0)
+
+            elapsed_time = time.time() - start_time
+            print(f"✅ 語音生成完成，耗時: {elapsed_time:.2f} 秒")
+            print("="*60 + "\n")
+
+            return Response(
+                content=wav_buffer.getvalue(),
+                media_type="audio/wav",
+                headers={
+                    "Content-Disposition": f"attachment; filename={voice_id}_output.wav",
+                    "X-Translated-Text": translated_text.encode('utf-8').decode('latin-1', errors='replace')
+                }
+            )
+        else:
+            return Response(content=b"", media_type="audio/wav")
+
+    except httpx.HTTPError as e:
+        print(f"❌ 台語翻譯失敗: {str(e)}")
+        raise HTTPException(status_code=502, detail=f"台語翻譯失敗: {str(e)}")
     except Exception as e:
         print(f"❌ 語音合成錯誤: {str(e)}")
         raise HTTPException(status_code=500, detail=f"語音合成失敗: {str(e)}")

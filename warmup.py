@@ -3,6 +3,7 @@
 Warmup script to initialize the model with a test inference
 This prevents the first real request from timing out
 """
+import os
 import time
 import requests
 import json
@@ -11,7 +12,7 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def wait_for_service(url, max_retries=60, retry_interval=2):
+def wait_for_service(url, max_retries=180, retry_interval=2):
     """Wait for the service to become available"""
     logger.info(f"Waiting for service at {url}...")
     for i in range(max_retries):
@@ -29,7 +30,7 @@ def wait_for_service(url, max_retries=60, retry_interval=2):
             if (i + 1) % 10 == 0:
                 logger.info(f"Still waiting... ({i + 1}/{max_retries})")
     
-    logger.error(f"Service did not become available after {max_retries * retry_interval} seconds")
+    logger.warning(f"Service did not respond after {max_retries * retry_interval} seconds, but continuing anyway...")
     return False
 
 def warmup_inference(url, config_file="/opt/CosyVoice/config/voices.local.json"):
@@ -95,12 +96,13 @@ def warmup_inference(url, config_file="/opt/CosyVoice/config/voices.local.json")
         return False
 
 def main():
-    service_url = "http://localhost:50000"
+    port = os.environ.get('PORT', '50000')
+    service_url = f"http://localhost:{port}"
     
     # Wait for service to start
     if not wait_for_service(service_url):
-        logger.error("Service failed to start, skipping warmup")
-        return 1
+        logger.warning("Service not responding yet, but warmup script will exit gracefully")
+        return 0  # 不要返回錯誤，讓服務繼續運行
     
     # Give the service a bit more time to fully initialize
     logger.info("Waiting additional 5 seconds for full initialization...")

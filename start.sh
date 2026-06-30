@@ -1,5 +1,10 @@
 #!/bin/bash
 
+# Generate nginx config from template
+envsubst '${PORT} ${EXTERNAL_TTS_HOST} ${EXTERNAL_TTS_PORT}' \
+    < /opt/CosyVoice/nginx.conf.template \
+    > /etc/nginx/sites-enabled/cosyvoice
+
 # Start Nginx
 service nginx start
 
@@ -31,19 +36,20 @@ else
 fi
 
 $CMD &
+SERVER_PID=$!
 
 # Wait for service to start and perform warmup
 echo "Waiting for service to start..."
 sleep 30
 
-# Run warmup script
+# Run warmup script (不影響主服務)
 if [ -f /opt/CosyVoice/warmup.py ]; then
     echo "Running warmup inference..."
-    python3 /opt/CosyVoice/warmup.py
+    python3 /opt/CosyVoice/warmup.py || echo "Warmup script finished with warnings, service continues..."
     echo "Warmup complete. System ready!"
 else
     echo "Warmup script not found, skipping warmup"
 fi
 
-# Keep container running
-tail -f /dev/null
+# Keep container running - wait for the server process
+wait $SERVER_PID

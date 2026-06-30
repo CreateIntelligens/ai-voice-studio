@@ -54,6 +54,9 @@ temp/
 .env.production
 .env.staging
 
+# nginx 設定由 envsubst 從 template 產生，含有敏感 IP
+nginx.conf
+
 # 音頻檔案
 *.wav
 *.mp3

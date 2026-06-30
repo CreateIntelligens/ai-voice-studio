@@ -243,25 +243,20 @@ async function generateAudioAsync(text, voiceId, version) {
             throw new Error('找不到聲音配置');
         }
         
-        // 準備音檔路徑
-        const audioFilePath = `/config/audio_samples/${voiceConfig.audio_file}`;
-        
-        // 獲取音檔檔案
-        const audioResponse = await fetch(audioFilePath);
-        if (!audioResponse.ok) {
-            throw new Error('無法載入音檔');
-        }
-        const audioBlob = await audioResponse.blob();
-        
-        // 準備 FormData
-        const formData = new FormData();
-        formData.append('prompt_audio', audioBlob, voiceConfig.audio_file);
-        formData.append('text', text);
+        // 準備 JSON 請求 - 使用 character 和 seed 參數
+        const requestBody = {
+            text: text,
+            character: voiceConfig.id,
+            seed: voiceConfig.seed || 0
+        };
         
         // 通過 nginx 代理調用外部 API
         const response = await fetch('/external-tts/tts', {
             method: 'POST',
-            body: formData
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(requestBody)
         });
         
         if (!response.ok) {

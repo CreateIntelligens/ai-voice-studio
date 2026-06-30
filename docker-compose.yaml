@@ -5,14 +5,16 @@ services:
     build: .
     container_name: ai-voice-studio-app
     ports:
-      - "${PORT:-50000}:50000"
+      - "${PORT:-50000}:${PORT:-50000}"
       - "${WEB_PORT:-8085}:8085"
     volumes:
       - .:/opt/CosyVoice
-      - ./nginx.conf:/etc/nginx/sites-enabled/cosyvoice
+      - ./nginx.conf.template:/opt/CosyVoice/nginx.conf.template
     environment:
       - MODEL_DIR=${MODEL_DIR}
       - PORT=${PORT}
+      - EXTERNAL_TTS_HOST=${EXTERNAL_TTS_HOST}
+      - EXTERNAL_TTS_PORT=${EXTERNAL_TTS_PORT}
       - CUDA_HOME=/usr/local/cuda
       - DS_BUILD_OPS=0
       - DS_BUILD_FUSED_ADAM=0
@@ -23,11 +25,15 @@ services:
     restart: always
     deploy:
       resources:
+        limits:
+          memory: 16G
         reservations:
+          memory: 16G
           devices:
             - driver: nvidia
               count: all
               capabilities: [gpu]
+    shm_size: '8gb'
     networks:
       - ai-voice-studio-network
 
